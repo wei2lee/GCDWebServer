@@ -579,8 +579,19 @@ static inline NSUInteger _ScanHexNumber(const void* bytes, NSUInteger size) {
                 }
               }
             } else {
-              GWS_LOG_ERROR(@"Unexpected 'Content-Length' header value on socket %i", _socket);
-              [self abortRequest:_request withStatusCode:kGCDWebServerHTTPStatusCode_BadRequest];
+                if(!_request.usesChunkedTransferEncoding && extraData.length > _request.contentLength) {
+                    NSRange range = [extraData rangeOfData:_CRLFCRLFData options:0 range:NSMakeRange(0, extraData.length)];
+                    if(range.location != NSNotFound) {
+                        GWS_LOG_ERROR(@"Unexpected 'Content-Length' header value on socket %i, but CRLFCRLF found, attemp to read as content", _socket);
+                        [self _readBodyWithLength:extraData.length initialData:extraData];
+                    } else {
+                        GWS_LOG_ERROR(@"Unexpected 'Content-Length' header value on socket %i, CRLFCRLF not found", _socket);
+                        [self abortRequest:_request withStatusCode:kGCDWebServerHTTPStatusCode_BadRequest];
+                    }
+                }else{
+                    GWS_LOG_ERROR(@"Unexpected 'Content-Length' header value on socket %i", _socket);
+                    [self abortRequest:_request withStatusCode:kGCDWebServerHTTPStatusCode_BadRequest];
+                }
             }
           } else {
             [self _startProcessingRequest];
